@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Palabra al Azar</title>
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#2F2F4F">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Palabra al Azar">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="icon" type="image/png" href="apple-touch-icon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap">
+<style>
+/* Layout: una columna a pantalla completa de iPhone. Engrane arriba a la derecha, título o palabra con el botón rojo al centro, y abajo una zona vacía que abre el control oculto con pulsación larga. Un solo look, oscuro y arcade. */
+:root{
+  --bg:#2F2F4F;
+  --ink:#17172E;
+  --panel:#24243F;
+  --yellow:#FFDE21;
+  --yellow-dim:rgba(255,222,33,.5);
+  --red:#C9211E;
+  --red-hi:#EC5148;
+  --red-lo:#8A1414;
+  --font:'Press Start 2P', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:border-box}
+html{box-sizing:border-box;background:var(--bg)}
+html,body{height:100%}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--yellow);
+  font-family:var(--font);
+  -webkit-touch-callout:none;
+  -webkit-user-select:none;
+  user-select:none;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+  overscroll-behavior:none;
+  overflow-x:hidden;
+}
+.app{
+  min-height:100%;
+  display:flex;
+  flex-direction:column;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));
+  padding-right:max(16px, env(safe-area-inset-right, 0px));
+}
+
+/* Engrane */
+.top{display:flex;justify-content:flex-end;align-items:center;min-height:60px}
+.gear{
+  width:48px;height:48px;padding:0;border:0;background:none;color:var(--yellow);
+  display:grid;place-items:center;cursor:pointer;
+}
+.gear svg{width:28px;height:28px;display:block;shape-rendering:crispEdges}
+.gear:active{transform:translateY(2px)}
+
+/* Escenario */
+.stage{
+  width:100%;max-width:440px;margin-inline:auto;
+  display:flex;flex-direction:column;align-items:center;gap:20px;
+  padding-top:clamp(8px, 5vh, 48px);
+  text-align:center;
+}
+.label{
+  margin:0;height:36px;width:100%;
+  display:flex;align-items:center;justify-content:center;
+  font-weight:400;line-height:1.4;white-space:nowrap;
+  text-shadow:3px 3px 0 var(--ink);
+}
+.word-slot{position:relative;width:100%;height:132px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.word-slot.spinning{-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 22%,#000 78%,transparent 100%);mask-image:linear-gradient(to bottom,transparent 0,#000 22%,#000 78%,transparent 100%)}
+.reel{position:absolute;left:0;right:0;top:0;will-change:transform,filter}
+.reel-item{height:132px;display:flex;align-items:center;justify-content:center;text-align:center;line-height:1.5;overflow-wrap:anywhere;text-shadow:3px 3px 0 var(--ink);padding-inline:2px}
+.word{
+  margin:0;width:100%;font-weight:400;line-height:1.5;
+  overflow-wrap:anywhere;text-shadow:3px 3px 0 var(--ink);
+}
+.word.idle{opacity:.35}
+@keyframes pop{
+  0%{transform:translateY(10px) scale(1.12);opacity:.4}
+  100%{transform:none;opacity:1}
+}
+.word.landed{animation:pop .3s steps(4,end) both}
+
+/* Botón 8-bit */
+.go{
+  font-family:var(--font);font-size:22px;line-height:1;color:var(--yellow);
+  background:var(--red);border:0;border-radius:0;cursor:pointer;
+  width:min(100% - 16px, 280px);padding:24px 12px;margin:8px 8px 8px;
+  text-shadow:3px 3px 0 var(--red-lo);
+  box-shadow:
+    inset 4px 4px 0 0 var(--red-hi),
+    inset -4px -4px 0 0 var(--red-lo),
+    0 -4px 0 0 var(--ink),
+    0 4px 0 0 var(--ink),
+    -4px 0 0 0 var(--ink),
+    4px 0 0 0 var(--ink);
+}
+.go:active{
+  transform:translateY(4px);
+  box-shadow:
+    inset 4px 4px 0 0 var(--red-lo),
+    inset -4px -4px 0 0 var(--red-hi),
+    0 -4px 0 0 var(--ink),
+    0 4px 0 0 var(--ink),
+    -4px 0 0 0 var(--ink),
+    4px 0 0 0 var(--ink);
+}
+.go.sm{font-size:12px;padding:18px 10px;width:calc(100% - 8px);margin:4px}
+.sec{
+  font-family:var(--font);font-size:11px;line-height:1.4;color:var(--yellow);
+  background:transparent;border:0;border-radius:0;cursor:pointer;
+  width:calc(100% - 6px);margin:3px;padding:14px 10px;
+  box-shadow:0 0 0 3px var(--yellow-dim);
+}
+.sec:active{background:rgba(255,222,33,.14)}
+.go:focus-visible,.sec:focus-visible,.gear:focus-visible,.seg button:focus-visible,.field:focus-visible{
+  outline:3px solid var(--yellow);outline-offset:4px;
+}
+
+/* Zona oculta */
+.hold{flex:1;min-height:140px;touch-action:none}
+
+/* Paneles */
+.overlay{
+  position:fixed;inset:0;z-index:20;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(10,10,26,.72);
+  padding-top:max(16px, env(safe-area-inset-top, 0px));
+  padding-bottom:max(16px, env(safe-area-inset-bottom, 0px));
+  padding-left:max(20px, env(safe-area-inset-left, 0px));
+  padding-right:max(20px, env(safe-area-inset-right, 0px));
+}
+.sheet{
+  width:100%;max-width:420px;max-height:100%;overflow-y:auto;
+  background:var(--panel);padding:24px 20px;
+  box-shadow:0 -4px 0 0 var(--yellow),0 4px 0 0 var(--yellow),-4px 0 0 0 var(--yellow),4px 0 0 0 var(--yellow);
+  user-select:none;-webkit-user-select:none;
+}
+.sheet h2{margin:0 0 22px;font-size:14px;font-weight:400;line-height:1.5}
+.sheet h3{margin:0 0 12px;font-size:10px;font-weight:400;letter-spacing:.08em;opacity:.7}
+.sheet section{margin-bottom:24px}
+.sheet p{margin:0}
+.info{font-size:11px;line-height:1.9}
+.info-row{display:flex;gap:16px;align-items:center}
+.logo{width:64px;height:64px;flex:none;border-radius:14px;image-rendering:auto}
+.seg{display:flex;gap:14px;padding:3px}
+.seg button{
+  flex:1;min-width:0;font-family:var(--font);font-size:11px;padding:14px 6px;
+  color:var(--yellow);background:transparent;border:0;border-radius:0;cursor:pointer;
+  box-shadow:0 0 0 3px var(--yellow-dim);
+}
+.seg button[aria-pressed="true"]{background:var(--yellow);color:var(--ink);box-shadow:0 0 0 3px var(--yellow)}
+.fieldlab{display:block;margin:0 0 10px;font-size:10px;line-height:1.5;opacity:.8}
+.field{
+  display:block;width:100%;margin:0 0 22px;padding:14px 12px;
+  font:16px/1.4 var(--font);color:var(--yellow);background:var(--bg);
+  border:0;border-radius:0;caret-color:var(--yellow);
+  box-shadow:0 0 0 3px var(--yellow-dim);
+  -webkit-user-select:text;user-select:text;-webkit-appearance:none;appearance:none;
+}
+.field::placeholder{color:var(--yellow-dim)}
+.field:focus{box-shadow:0 0 0 3px var(--yellow)}
+.status{font-size:10px;line-height:2;white-space:pre-line;margin:0 0 20px;opacity:.85}
+.stack{display:flex;flex-direction:column;gap:10px}
+
+@media (prefers-reduced-motion:reduce){.word.landed{animation:none}}
+[hidden]{display:none!important}
+.app{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+</style>
+</head>
+<body>
+
+
+<div class="app">
+  <header class="top">
+    <button id="gear" class="gear" type="button" aria-label="Ajustes"></button>
+  </header>
+
+  <main id="stage" class="stage">
+    <h1 id="label" class="label"></h1>
+    <div id="slot" class="word-slot"><p id="word" class="word idle">?</p><div id="reel" class="reel" hidden></div></div>
+    <button id="go" class="go" type="button">Vamos</button>
+  </main>
+
+  <div id="hold" class="hold" aria-hidden="true"></div>
+</div>
+
+<div id="settings" class="overlay" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="stTitle">
+    <h2 id="stTitle" data-i18n="settings"></h2>
+    <section>
+      <h3 data-i18n="language"></h3>
+      <div class="seg">
+        <button type="button" data-lang="es" aria-pressed="true">Español</button>
+        <button type="button" data-lang="en" aria-pressed="false">English</button>
+      </div>
+    </section>
+    <section>
+      <h3 data-i18n="info"></h3>
+      <div class="info-row">
+        <img id="logo" class="logo" alt="" width="64" height="64">
+        <p class="info" data-i18n="infoText"></p>
+      </div>
+    </section>
+    <button id="stClose" class="sec" type="button" data-i18n="close"></button>
+  </div>
+</div>
+
+<div id="secret" class="overlay" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sTitle">
+    <h2 id="sTitle" data-i18n="sTitle"></h2>
+    <label class="fieldlab" for="sWord" data-i18n="sWord"></label>
+    <input id="sWord" class="field" type="text" autocomplete="off" autocorrect="off" spellcheck="false" maxlength="40">
+    <label class="fieldlab" for="sPos" data-i18n="sPos"></label>
+    <input id="sPos" class="field" type="number" inputmode="numeric" min="1" step="1" autocomplete="off">
+    <p id="sStatus" class="status" aria-live="polite"></p>
+    <div class="stack">
+      <button id="sSave" class="go sm" type="button" data-i18n="save"></button>
+      <button id="sReset" class="sec" type="button" data-i18n="reset"></button>
+      <button id="sClear" class="sec" type="button" data-i18n="clear"></button>
+      <button id="sClose" class="sec" type="button" data-i18n="close"></button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var ICON = 'apple-touch-icon.png';
+
+  /* ---------- Palabras (español e inglés mezclados) ---------- */
+  var POOL = [
+    'Correr','Saltar','Bailar','Nadar','Cantar','Volar','Dormir','Soñar','Pintar','Escribir','Cocinar','Viajar','Reír','Escalar','Buscar','Abrazar','Lanzar','Construir','Descubrir','Imaginar','Caminar','Brillar','Explorar','Aprender','Navegar','Atrapar','Susurrar','Aplaudir','Tropezar','Perseguir','Florecer','Flotar','Girar','Reunir',
+    'Paraguas','Llave','Espejo','Reloj','Silla','Ventana','Candado','Brújula','Martillo','Tijeras','Cuaderno','Lámpara','Maleta','Bicicleta','Guitarra','Sombrero','Cuchara','Botella','Teléfono','Cámara','Globo','Moneda','Almohada','Telescopio','Peine','Pelota','Cepillo','Linterna','Corbata','Anillo','Escalera','Vela','Sobre','Ancla','Cubeta','Violín','Cinturón','Tetera','Cojín','Radio','Mochila','Zapato','Calcetín','Bufanda','Abanico','Tambor','Cadena','Sartén','Cuerda','Canasta',
+    'México','Argentina','Japón','Egipto','Noruega','Brasil','Canadá','Italia','Perú','Kenia','Grecia','Tailandia','Chile','Marruecos','Islandia','Portugal','Colombia','Australia','India','Suiza','Cuba','Irlanda','Vietnam','Turquía','España','Francia','Alemania','China','Suecia','Costa Rica','Panamá','Ecuador','Uruguay','Bolivia','Nueva Zelanda','Dinamarca','Finlandia','Jamaica','Mongolia','Sudáfrica','Nepal','Croacia',
+    'Montaña','Sonrisa','Tormenta','Camino','Secreto','Aventura','Silencio','Fortuna','Misterio','Amistad','Libertad','Sorpresa','Música','Recuerdo','Destino','Nube','Océano','Bosque','Desierto','Isla','Luna','Estrella','Relámpago','Cometa','Playa','Volcán','Jardín','Castillo','Dragón','Tesoro','Pirata','Fantasma','Invierno','Verano','Sombra','Eco','Puente','Faro','Ola','Fuego','Semilla','Arcoíris','Trueno','Mapa','Poema','Laberinto','Cascada','Pradera','Neblina','Aurora','Planeta','Galaxia','Burbuja','Veleta','Espuma',
+    'Chocolate','Café','Miel','Pastel','Manzana','Sandía','Taco','Helado','Pan','Queso','Naranja','Fresa',
+    'Elefante','Mariposa','Delfín','Búho','Tortuga','Zorro','Pingüino','Jirafa','León','Águila','Caballo','Cangrejo','Pulpo','Ballena','Canguro'
+  ].filter(function (w, i, a) { return a.indexOf(w) === i; });
+
+  /* ---------- Textos ---------- */
+  var T = {
+    es: {
+      title: 'Palabra al Azar', yourWord: 'Tu palabra es:',
+      settings: 'Ajustes', language: 'Idioma', info: 'Información',
+      infoText: 'La manera más sencilla de escoger una palabra completamente al azar.',
+      close: 'Cerrar',
+      sTitle: 'Control', sWord: 'Palabra a forzar', sPos: 'Aparece en el toque n.º',
+      save: 'Guardar', reset: 'Reiniciar contador', clear: 'Quitar palabra',
+      forced: function (w, p) { return 'Forzada: ' + w + ' en el toque ' + p; },
+      noForce: 'Sin palabra forzada',
+      taps: function (n) { return 'Toques hasta ahora: ' + n; },
+      saved: 'Guardado. El contador volvió a 0.',
+      resetDone: 'Contador en 0.',
+      cleared: 'Palabra quitada.',
+      badPos: 'El número de toque debe ser 1 o más.',
+      noStore: 'Este navegador no puede recordar los datos. Funcionan mientras la página siga abierta.'
+    },
+    en: {
+      title: 'Random Word', yourWord: 'Your word is:',
+      settings: 'Settings', language: 'Language', info: 'Information',
+      infoText: 'The easiest way to pick a completely random word.',
+      close: 'Close',
+      sTitle: 'Control', sWord: 'Word to force', sPos: 'Appears on tap no.',
+      save: 'Save', reset: 'Reset counter', clear: 'Remove word',
+      forced: function (w, p) { return 'Forced: ' + w + ' on tap ' + p; },
+      noForce: 'No forced word',
+      taps: function (n) { return 'Taps so far: ' + n; },
+      saved: 'Saved. The counter went back to 0.',
+      resetDone: 'Counter at 0.',
+      cleared: 'Word removed.',
+      badPos: 'The tap number must be 1 or more.',
+      noStore: 'This browser cannot remember the data. It works while the page stays open.'
+    }
+  };
+
+  /* ---------- Almacenamiento local (solo en este navegador) ---------- */
+  var store = {
+    get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set: function (k, v) { try { localStorage.setItem(k, v); return true; } catch (e) { return false; } },
+    del: function (k) { try { localStorage.removeItem(k); return true; } catch (e) { return false; } }
+  };
+
+  var lang = store.get('pal.lang') === 'en' ? 'en' : 'es';
+  var forceWord = store.get('pal.word') || '';
+  var forcePos = parseInt(store.get('pal.pos'), 10);
+  if (!(forcePos >= 1)) forcePos = 3;
+  var taps = 0, busy = false, hasWord = false, lastWords = [], flash = '', openedAt = 0;
+
+  /* ---------- Elementos ---------- */
+  function $(id) { return document.getElementById(id); }
+  var stage = $('stage'), labelEl = $('label'), wordEl = $('word'), goBtn = $('go');
+  var gearBtn = $('gear'), holdEl = $('hold'), settings = $('settings'), secret = $('secret');
+  var sWord = $('sWord'), sPos = $('sPos'), sStatus = $('sStatus');
+
+  /* ---------- Ícono ---------- */
+  $('logo').src = ICON;
+
+  /* ---------- Engrane en píxeles ---------- */
+  var GEAR = [
+    '....###....',
+    '.##.###.##.',
+    '.#########.',
+    '..##...##..',
+    '###.....###',
+    '###.....###',
+    '###.....###',
+    '..##...##..',
+    '.#########.',
+    '.##.###.##.',
+    '....###....'
+  ];
+  var d = '';
+  GEAR.forEach(function (row, y) {
+    for (var x = 0; x < row.length; x++) if (row.charAt(x) === '#') d += 'M' + x + ' ' + y + 'h1v1h-1z';
+  });
+  gearBtn.innerHTML = '<svg viewBox="0 0 11 11" aria-hidden="true"><path fill="currentColor" d="' + d + '"/></svg>';
+
+  /* ---------- Utilidades ---------- */
+  function norm(s) { return String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim(); }
+  function display(w) {
+    w = String(w).replace(/\s+/g, ' ').trim();
+    if (w && w === w.toLowerCase()) w = w.charAt(0).toUpperCase() + w.slice(1);
+    return w;
+  }
+  function fit(el, max, min) {
+    var avail = stage.clientWidth || 300;
+    var len = Math.max(1, Array.from(el.textContent).length);
+    el.style.fontSize = Math.max(min, Math.min(max, Math.floor(avail / len))) + 'px';
+  }
+  function fitAll() {
+    fit(labelEl, hasWord ? 14 : 22, 9);
+    fit(wordEl, 34, 12);
+  }
+  function anyWord() { return POOL[Math.floor(Math.random() * POOL.length)]; }
+  function pickRandom() {
+    var fw = forceWord ? norm(forceWord) : '';
+    var w, tries = 0;
+    do {
+      w = anyWord(); tries++;
+    } while (tries < 60 && (lastWords.indexOf(w) !== -1 || (fw && norm(w) === fw)));
+    lastWords.push(w);
+    if (lastWords.length > 40) lastWords.shift();
+    return w;
+  }
+
+  /* ---------- Idioma ---------- */
+  function renderSecretStatus() {
+    var t = T[lang];
+    var line = forceWord ? t.forced(display(forceWord), forcePos) : t.noForce;
+    line += '\n' + t.taps(taps);
+    if (flash) line += '\n' + flash;
+    sStatus.textContent = line;
+  }
+  function applyLang() {
+    var t = T[lang];
+    document.documentElement.lang = lang;
+    Array.prototype.forEach.call(document.querySelectorAll('[data-i18n]'), function (el) {
+      el.textContent = t[el.getAttribute('data-i18n')];
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-lang]'), function (b) {
+      b.setAttribute('aria-pressed', String(b.getAttribute('data-lang') === lang));
+    });
+    labelEl.textContent = hasWord ? t.yourWord : t.title;
+    gearBtn.setAttribute('aria-label', t.settings);
+    renderSecretStatus();
+    fitAll();
+  }
+
+  /* ---------- Botón Vamos ---------- */
+  function setWord(w) {
+    wordEl.textContent = w;
+    fit(wordEl, 34, 12);
+  }
+  var slotEl = $('slot'), reelEl = $('reel');
+  function fillerWord(prev) {
+    var fw = forceWord ? norm(forceWord) : '';
+    var w, tries = 0;
+    do { w = anyWord(); tries++; } while (tries < 40 && (w === prev || (fw && norm(w) === fw)));
+    return w;
+  }
+  function shuffle(finalWord, done) {
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce || !reelEl.animate) { setWord(finalWord); done(); return; }
+    var H = slotEl.clientHeight || 132;
+    var COUNT = 22, DUR = 2300;
+    var items = [wordEl.textContent], prev = items[0];
+    for (var k = 0; k < COUNT; k++) { prev = fillerWord(prev); items.push(prev); }
+    items.push(finalWord);
+    reelEl.textContent = '';
+    items.forEach(function (txt) {
+      var d = document.createElement('div');
+      d.className = 'reel-item';
+      d.textContent = txt;
+      reelEl.appendChild(d);
+      fit(d, 34, 12);
+    });
+    var total = -(items.length - 1) * H;
+    reelEl.hidden = false;
+    wordEl.style.visibility = 'hidden';
+    slotEl.classList.add('spinning');
+    var finished = false;
+    var anim = reelEl.animate([
+      { transform: 'translateY(0px)', filter: 'blur(0px)' },
+      { transform: 'translateY(' + (total * 0.06) + 'px)', filter: 'blur(5px)', offset: 0.06 },
+      { transform: 'translateY(' + (total * 0.5) + 'px)', filter: 'blur(4px)', offset: 0.5 },
+      { transform: 'translateY(' + (total * 0.85) + 'px)', filter: 'blur(1.5px)', offset: 0.85 },
+      { transform: 'translateY(' + total + 'px)', filter: 'blur(0px)' }
+    ], { duration: DUR, easing: 'cubic-bezier(.12,.6,.15,1)', fill: 'forwards' });
+    function finish() {
+      if (finished) return;
+      finished = true;
+      setWord(finalWord);
+      wordEl.style.visibility = '';
+      reelEl.hidden = true;
+      reelEl.textContent = '';
+      slotEl.classList.remove('spinning');
+      try { anim.cancel(); } catch (e) {}
+      done();
+    }
+    anim.onfinish = finish;
+    setTimeout(finish, DUR + 600);
+  }
+  function go() {
+    if (busy) return;
+    busy = true;
+    taps++;
+    var forced = forceWord && taps === forcePos;
+    var finalWord = forced ? display(forceWord) : pickRandom();
+    if (forced) { lastWords.push(finalWord); }
+    if (!hasWord) { hasWord = true; labelEl.textContent = T[lang].yourWord; }
+    wordEl.classList.remove('idle', 'landed');
+    fitAll();
+    shuffle(finalWord, function () { busy = false; });
+  }
+  goBtn.addEventListener('click', go);
+
+  /* ---------- Paneles ---------- */
+  function openOverlay(el) { el.hidden = false; openedAt = Date.now(); }
+  function closeOverlay(el) {
+    el.hidden = true;
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  }
+  [settings, secret].forEach(function (ov) {
+    ov.addEventListener('click', function (e) {
+      if (e.target === ov && Date.now() - openedAt > 400) closeOverlay(ov);
+    });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { closeOverlay(settings); closeOverlay(secret); }
+  });
+
+  gearBtn.addEventListener('click', function () { openOverlay(settings); });
+  $('stClose').addEventListener('click', function () { closeOverlay(settings); });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-lang]'), function (b) {
+    b.addEventListener('click', function () {
+      lang = b.getAttribute('data-lang');
+      store.set('pal.lang', lang);
+      applyLang();
+    });
+  });
+
+  /* ---------- Menú oculto: pulsación larga en la zona vacía ---------- */
+  var holdTimer = null, sx = 0, sy = 0;
+  function cancelHold() { if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; } }
+  function openSecret() {
+    flash = '';
+    sWord.value = forceWord;
+    sPos.value = String(forcePos);
+    renderSecretStatus();
+    openOverlay(secret);
+  }
+  holdEl.addEventListener('pointerdown', function (e) {
+    sx = e.clientX; sy = e.clientY;
+    cancelHold();
+    holdTimer = setTimeout(function () { holdTimer = null; openSecret(); }, 650);
+  });
+  holdEl.addEventListener('pointermove', function (e) {
+    if (holdTimer && Math.hypot(e.clientX - sx, e.clientY - sy) > 12) cancelHold();
+  });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (ev) { holdEl.addEventListener(ev, cancelHold); });
+  holdEl.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+
+  $('sSave').addEventListener('click', function () {
+    var t = T[lang];
+    var w = sWord.value.replace(/\s+/g, ' ').trim();
+    var p = parseInt(sPos.value, 10);
+    if (!(p >= 1)) { flash = t.badPos; renderSecretStatus(); return; }
+    forceWord = w; forcePos = p; taps = 0;
+    var ok = w ? store.set('pal.word', w) : store.del('pal.word');
+    ok = store.set('pal.pos', String(p)) && ok;
+    flash = ok ? t.saved : t.noStore;
+    renderSecretStatus();
+  });
+  $('sReset').addEventListener('click', function () {
+    taps = 0; lastWords = []; flash = T[lang].resetDone; renderSecretStatus();
+  });
+  $('sClear').addEventListener('click', function () {
+    forceWord = ''; sWord.value = '';
+    var ok = store.del('pal.word');
+    flash = ok ? T[lang].cleared : T[lang].noStore;
+    renderSecretStatus();
+  });
+  $('sClose').addEventListener('click', function () { closeOverlay(secret); });
+
+  /* ---------- Arranque ---------- */
+  document.addEventListener('touchstart', function () {}, { passive: true });
+  window.addEventListener('resize', fitAll);
+  window.addEventListener('orientationchange', fitAll);
+  applyLang();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitAll);
+})();
+</script>
+
+</body>
+</html>
